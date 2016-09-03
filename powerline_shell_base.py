@@ -70,10 +70,11 @@ class Powerline:
     def bgcolor(self, code):
         return self.color('48', code)
 
-    def append(self, content, fg, bg, separator=None, separator_fg=None):
+    def append(self, content, fg, bg, separator=None, separator_fg=None, state_info=None):
         self.segments.append((content, fg, bg,
             separator if separator is not None else self.separator,
-            separator_fg if separator_fg is not None else bg))
+            separator_fg if separator_fg is not None else bg,
+            True if state_info is not None else False))
 
     def draw(self):
         text = (''.join(self.draw_segment(i) for i in range(len(self.segments)))
@@ -84,27 +85,114 @@ class Powerline:
             return text.encode('utf-8')
 
     def draw_segment(self, idx):
+        segments_count = len(self.segments)
         segment = self.segments[idx]
         next_segment = self.segments[idx + 1] if idx < len(self.segments)-1 else None
+        previous_segment = self.segments[idx - 1] if idx > 0 else None
 
-        return ''.join((
-            self.fgcolor(segment[1]),
-            self.bgcolor(segment[2]),
-            segment[0],
-            self.bgcolor(next_segment[2]) if next_segment else self.reset,
-            self.fgcolor(segment[4]),
-            segment[3]))
+        s = ''
+
+        # Don't display the branch segment, this is merged in with the repo name segment.
+        if len(self.segments) > 3 and idx == 2:
+            return ''
+
+        # Branch status
+        if segment[5]:
+            first = True if previous_segment[5] == False and segment[5] == True else False
+            last = True if next_segment[5] == False else False
+
+            if first and last:
+                s = ''.join((
+                    self.fgcolor(segment[1]),
+                    self.bgcolor(segment[2]),
+                    '[%s] ' % segment[0],
+                    self.bgcolor(next_segment[2]) if next_segment else self.reset,
+                    self.fgcolor(segment[4]),
+                    segment[3]))
+
+            elif first:
+                s = ''.join((
+                    self.fgcolor(segment[1]),
+                    self.bgcolor(segment[2]),
+                    '[',
+                    segment[0],
+                    self.bgcolor(next_segment[2]) if next_segment else self.reset,
+                    self.fgcolor(segment[4])))
+
+            elif last:
+                s = ''.join((
+                    self.fgcolor(segment[1]),
+                    self.bgcolor(segment[2]),
+                    segment[0],
+                    '] ',
+                    self.bgcolor(next_segment[2]) if next_segment else self.reset,
+                    self.fgcolor(segment[4]),
+                    segment[3]))
+
+
+            else:
+                s = ''.join((
+                    self.fgcolor(segment[1]),
+                    self.bgcolor(segment[2]),
+                    segment[0],
+                    self.bgcolor(next_segment[2]) if next_segment else self.reset,
+                    self.fgcolor(segment[4])))
+
+        elif segments_count > 3 and idx == 1:
+            repo_name = segment[0].rstrip()
+            branch_name = next_segment[0].strip()
+
+            if segments_count == 4:
+                s = ''.join((
+                        self.fgcolor(segment[1]),
+                        self.bgcolor(segment[2]),
+                        repo_name,
+                        self.fgcolor(15),
+                        '(',
+                        self.fgcolor(next_segment[1]),
+                        branch_name,
+                        self.fgcolor(15),
+                        ') ',
+                        self.bgcolor(235),
+                        self.fgcolor(segment[4]),
+                        segment[3]))
+
+            else:
+                s = ''.join((
+                        self.fgcolor(segment[1]),
+                        self.bgcolor(segment[2]),
+                        repo_name,
+                        self.fgcolor(15),
+                        '(',
+                        self.fgcolor(next_segment[1]),
+                        branch_name,
+                        self.fgcolor(15),
+                        ') ',
+                        self.bgcolor(segment[2]) if next_segment else self.reset,
+                        self.fgcolor(segment[4])))
+
+        # Standard segemnt
+        else:
+            s = ''.join((
+                    self.fgcolor(segment[1]),
+                    self.bgcolor(segment[2]),
+                    segment[0],
+                    self.bgcolor(next_segment[2]) if next_segment else self.reset,
+                    self.fgcolor(segment[4]),
+                    segment[3]))
+
+        return s
 
 
 class RepoStats:
     symbols = {
         'detached': u'\u2693',
-        'ahead': u'\u2B06',
-        'behind': u'\u2B07',
-        'staged': u'\u2714',
-        'not_staged': u'\u270E',
-        'untracked': u'\u2753',
-        'conflicted': u'\u273C'
+        'ahead': u'⇡',
+        'behind': u'⇣',
+        'staged': u'+',
+        'not_staged': u'!',
+        'untracked': u'?',
+        'conflicted': u'x'
     }
 
     def __init__(self):
@@ -142,16 +230,24 @@ class RepoStats:
         return unicode(self[_key]) if int(self[_key]) > 1 else u''
 
     def add_to_powerline(self, powerline, color):
-        def add(_key, fg, bg):
+        def add(_key):
             if self[_key]:
-                s = u" {}{} ".format(self.n_or_empty(_key), self.symbols[_key])
-                powerline.append(s, fg, bg)
-        add('ahead', color.GIT_AHEAD_FG, color.GIT_AHEAD_BG)
-        add('behind', color.GIT_BEHIND_FG, color.GIT_BEHIND_BG)
-        add('staged', color.GIT_STAGED_FG, color.GIT_STAGED_BG)
-        add('not_staged', color.GIT_NOTSTAGED_FG, color.GIT_NOTSTAGED_BG)
-        add('untracked', color.GIT_UNTRACKED_FG, color.GIT_UNTRACKED_BG)
-        add('conflicted', color.GIT_CONFLICTED_FG, color.GIT_CONFLICTED_BG)
+                s = u"{}{}".format(self.symbols[_key], unicode(self[_key]))
+
+                if (_key == 'ahead'):
+                    powerline.append(s, color.AHEAD_FG, color.PATH_BG)
+                elif (_key == 'behind'):
+                    powerline.append(s, color.BEHIND_FG, color.PATH_BG)
+                else:
+                    s = u"{}".format(self.symbols[_key])
+                    powerline.append(s, color.STATUS_FG, color.PATH_BG, None, None, True)
+
+        add('ahead')
+        add('behind')
+        add('staged')
+        add('not_staged')
+        add('untracked')
+        add('conflicted')
 
 
 def get_valid_cwd():

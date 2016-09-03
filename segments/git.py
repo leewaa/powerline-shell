@@ -80,11 +80,8 @@ def add_git_segment(powerline):
     else:
         branch = _get_git_detached_branch()
 
-    bg = Color.REPO_CLEAN_BG
-    fg = Color.REPO_CLEAN_FG
-    if stats.dirty:
-        bg = Color.REPO_DIRTY_BG
-        fg = Color.REPO_DIRTY_FG
+    bg = Color.BRANCH_BG
+    fg = Color.BRANCH_FG
 
     powerline.append(' %s ' % branch, fg, bg)
     stats.add_to_powerline(powerline, Color)
