@@ -63,8 +63,8 @@ class Color:
     BRANCH_COMMIT_STATE_BG = 245
     BRANCH_COMMIT_STATE_FG = 15
 
-    AHEAD_FG = 46
-    BEHIND_FG = 196
+    AHEAD_FG = 45
+    BEHIND_FG = 203
 
     VIRTUAL_ENV_BG = 35  # a mid-tone green
     VIRTUAL_ENV_FG = 00
